@@ -39,13 +39,19 @@ class forwardKinematicCalculator : public rclcpp_lifecycle::LifecycleNode
             this->declare_parameter<std::double_t>("wheel_base_length", 1);
             this->declare_parameter<std::double_t>("wheel_radius", 1);
             this->declare_parameter<bool>("invert_right", true);
-            this->declare_parameter<bool>("update_rate_ms", 100);
+            this->declare_parameter<int64_t>("update_rate_ms", 100);
 
             this->get_parameter("wheel_base_width", wheelBaseWidth);
             this->get_parameter("wheel_base_length", wheelBaseLength);
             this->get_parameter("wheel_radius", wheelRadius);
             this->get_parameter("invert_right", invertRight);
             this->get_parameter("update_rate_ms", updateRateMs);
+
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Wheel Base Width: %f", wheelBaseWidth);
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Wheel Base Length: %f", wheelBaseLength);
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Wheel Radius: %f", wheelRadius);
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Invert Right Motors: %d", invertRight);
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Update Rate: %ld ms", updateRateMs);
 
             createInterfaces();
 
@@ -124,6 +130,7 @@ class forwardKinematicCalculator : public rclcpp_lifecycle::LifecycleNode
                     wheelVelocities[i] = message.current_velocity;
                     if((i == 1 || i == 3) && invertRight)
                         wheelVelocities[i] *= -1;
+                    RCLCPP_DEBUG(rclcpp::get_logger("Axis Status Subscriber Callback"), "Stored axis %d velocity of: %f", i, wheelVelocities[i]);
                 };
 
                 AxisStatus[i] = this->create_subscription<odrive_interface::msg::AxisStatus>(axisSubscriptionTopics[i], 50, callback);
@@ -160,18 +167,27 @@ class forwardKinematicCalculator : public rclcpp_lifecycle::LifecycleNode
             if(this->get_current_state().id() != 3)     //3 is active
                 return;
 
+            RCLCPP_DEBUG(rclcpp::get_logger("calculateOdometry"), "Calculating odometry with wheel velocities:\n\tFL: %f, FR: %f, RL: %f, RR: %f",
+                    wheelVelocities[0], wheelVelocities[1], wheelVelocities[2], wheelVelocities[3]);
+
             odom.header.stamp = this->now();
             odom.header.frame_id = "odom";
 
             odom.pose.pose.position.x = (wheelVelocities[0] + wheelVelocities[1] + wheelVelocities[2] + wheelVelocities[3]) *
-                    (wheelRadius / 4) * RADIANS_PER_CIRCLE * (updateRateMs / 1000);
+                    (wheelRadius / 4.0) * RADIANS_PER_CIRCLE * (updateRateMs / 1000.0);
             odom.pose.pose.position.y = (-wheelVelocities[0] + wheelVelocities[1] + wheelVelocities[2] - wheelVelocities[3]) *
-                    (wheelRadius / 4) * RADIANS_PER_CIRCLE * (updateRateMs / 1000);
+                    (wheelRadius / 4.0) * RADIANS_PER_CIRCLE * (updateRateMs / 1000.0);
             odom.pose.pose.position.z = 0;
 
             double theta = (-wheelVelocities[0] + wheelVelocities[1] - wheelVelocities[2] + wheelVelocities[3]) *
-                    (wheelRadius / (4 * ((wheelBaseWidth / 2) + (wheelBaseLength / 2)))) * RADIANS_PER_CIRCLE * (updateRateMs / 1000);
+                    (wheelRadius / (4.0 * ((wheelBaseWidth / 2.0) + (wheelBaseLength / 2.0)))) * RADIANS_PER_CIRCLE * (updateRateMs / 1000.0);
             odom.pose.pose.orientation.set__z(theta);
+
+            RCLCPP_DEBUG(rclcpp::get_logger("calculateOdometry"), "Odometry:\n\tPosition - X: %f, Y: %f, Z: %f\n\tQuaternion - X: %f, Y: %f, Z: %f, W: %f",
+                    odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z,
+                    odom.pose.pose.orientation.x, odom.pose.pose.orientation.y, odom.pose.pose.orientation.z, odom.pose.pose.orientation.w);
+
+            odometryPublisher->publish(odom);
         }
 
         rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Odometry>::SharedPtr odometryPublisher;
@@ -191,7 +207,7 @@ class forwardKinematicCalculator : public rclcpp_lifecycle::LifecycleNode
         double_t wheelBaseLength;
         double_t wheelRadius;
         bool invertRight;
-        int32_t updateRateMs;
+        int64_t updateRateMs;
 
         float wheelVelocities[4];
 };
