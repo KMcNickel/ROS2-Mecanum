@@ -43,6 +43,11 @@ class inverseKinematicCalculator : public rclcpp_lifecycle::LifecycleNode
             this->get_parameter("wheel_radius", wheelRadius);
             this->get_parameter("invert_right", invertRight);
 
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Wheel Base Width: %f", wheelBaseWidth);
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Wheel Base Length: %f", wheelBaseLength);
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Wheel Radius: %f", wheelRadius);
+            RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Invert Right Motors: %d", invertRight);
+
             createInterfaces();
 
             RCLCPP_INFO(rclcpp::get_logger("on_configure"), "Configuration completed successfully");
@@ -143,6 +148,10 @@ class inverseKinematicCalculator : public rclcpp_lifecycle::LifecycleNode
             double reciprocalRadius = 1 / wheelRadius;
             double wheelSeperation = (wheelBaseWidth / 2) + (wheelBaseLength / 2);
 
+            RCLCPP_DEBUG(rclcpp::get_logger("calculateTargetVelocities"),
+                    "Incoming twist message:\n\tLinear - X: %f, Y: %f, Z: %f\n\tAngular - X: %f, Y: %f, Z: %f",
+                    message.linear.x, message.linear.y, message.linear.z, message.angular.x, message.angular.y, message.angular.z);
+
             //Front Left
             velocities[0].input_velocity = (reciprocalRadius * (message.linear.x - message.linear.y - wheelSeperation * message.angular.z)) / RADIANS_PER_CIRCLE;
             //Front Right
@@ -153,6 +162,9 @@ class inverseKinematicCalculator : public rclcpp_lifecycle::LifecycleNode
             //Rear Right
             velocities[3].input_velocity = (reciprocalRadius * (message.linear.x - message.linear.y + wheelSeperation * message.angular.z)) / RADIANS_PER_CIRCLE;
             if(invertRight) velocities[3].input_velocity *= -1;
+
+            RCLCPP_DEBUG(rclcpp::get_logger("calculateTargetVelocities"), "Command Velocities: FL: %f, FR: %f, RL: %f, RR: %f",
+                    velocities[0], velocities[1], velocities[2], velocities[3]);
 
             wheelFrontLeftVelocityPublisher->publish(velocities[0]);
             wheelFrontRightVelocityPublisher->publish(velocities[1]);
