@@ -164,7 +164,7 @@ class inverseKinematicCalculator : public rclcpp_lifecycle::LifecycleNode
             if(invertRight) velocities[3].input_velocity *= -1;
 
             RCLCPP_DEBUG(rclcpp::get_logger("calculateTargetVelocities"), "Command Velocities: FL: %f, FR: %f, RL: %f, RR: %f",
-                    velocities[0], velocities[1], velocities[2], velocities[3]);
+                    velocities[0].input_velocity, velocities[1].input_velocity, velocities[2].input_velocity, velocities[3].input_velocity);
 
             wheelFrontLeftVelocityPublisher->publish(velocities[0]);
             wheelFrontRightVelocityPublisher->publish(velocities[1]);
